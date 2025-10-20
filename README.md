@@ -116,6 +116,16 @@
 
 <img src="zs.png" alt="请作者喝杯咖啡" width="380" />
 
+## 示例与效果图
+
+-   **示例视频**：
+
+<video src="效果图/视频1.mp4" controls width="720" poster="效果图/图片1.png"></video>
+
+-   **示例图片**：
+
+<img src="效果图/图片1.png" alt="插件示例图片" width="720" />
+
 ## 开发说明
 
 ### 依赖项
