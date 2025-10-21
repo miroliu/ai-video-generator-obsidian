@@ -1,9 +1,9 @@
 {
-	"id": "ai-video-generator-obsidian",
+    "id": "ai-video-generator",
 	"name": "AI Video Generator",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Generate AI videos using Sora2 model directly in Obsidian",
+	"description": "Generate AI videos using Sora2 model directly in your notes.",
 	"author": "miro liu",
 	"authorUrl": "https://github.com/yourusername",
 	"fundingUrl": "https://github.com/sponsors/yourusername",
