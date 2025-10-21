@@ -280,14 +280,11 @@ export default class VideoGeneratorPlugin extends Plugin {
 		// 调用API生成视频
 		const response = await this.generateVideo(request);
 		
-		// 添加调试信息
-		console.log('API Response:', response);
-		
 		// 检查响应格式并提取任务ID
 		let taskId: string | null = null;
 		
 		if (response && typeof response === 'object') {
-			const resp = response as any;
+			const resp = response as VideoGenerationResponse;
 			
 			// 检查标准格式: {id: "..."}
 			if (resp.id) {
@@ -310,15 +307,6 @@ export default class VideoGeneratorPlugin extends Plugin {
 				taskId = resp.data.taskId;
 			}
 			
-			// 添加更详细的调试信息
-			console.log('Command API Response structure:', {
-				hasId: !!resp.id,
-				hasData: !!resp.data,
-				dataId: resp.data?.id,
-				dataTaskId: resp.data?.taskId,
-				dataTask_id: resp.data?.task_id,
-				fullResponse: resp
-			});
 		}
 		
 		if (taskId) {
@@ -329,7 +317,7 @@ export default class VideoGeneratorPlugin extends Plugin {
 			console.error('Unexpected API response format:', response);
 			
 			// 尝试从data中提取更多信息
-			const resp = response as any;
+			const resp = response as VideoGenerationResponse;
 			let errorDetails = '';
 			
 			if (resp.data) {
@@ -370,8 +358,6 @@ export default class VideoGeneratorPlugin extends Plugin {
 			try {
 				const result = await this.getVideoResult(id);
 				
-				// 添加调试日志
-				console.log('Video generation result (context menu):', result);
 				
 				// 更新进度通知
 				const progress = result.progress || 0;
@@ -379,7 +365,6 @@ export default class VideoGeneratorPlugin extends Plugin {
 
 				// 检查生成状态 - 支持多种状态字段
 				const status = result.status || result.state || result.task_status;
-				console.log('Video generation status (context menu):', status, 'progress:', progress);
 				
 				if (status === 'succeeded' || status === 'completed' || status === 'success' || progress === 100) {
 					clearInterval(pollInterval);
@@ -561,7 +546,6 @@ export default class VideoGeneratorPlugin extends Plugin {
 		}
 
 		const url = `${currentHost}/v1/video/sora-video`;
-		console.log('Making API request to:', url);
 		
 		const headers = {
 			'Content-Type': 'application/json',
@@ -593,8 +577,6 @@ export default class VideoGeneratorPlugin extends Plugin {
 		const cleanRequest = Object.fromEntries(
 			Object.entries(request).filter(([_, value]) => value !== undefined)
 		);
-		
-		console.log('Sending request:', cleanRequest);
 
 		try {
 			const response = await fetch(url, {
@@ -609,7 +591,6 @@ export default class VideoGeneratorPlugin extends Plugin {
 			}
 
 			const data = await response.json();
-			console.log('Raw API response:', data);
 			
 			// 检查API业务错误
 			if (data && typeof data === 'object') {
@@ -698,50 +679,30 @@ class VideoGeneratorModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 
-		// 设置模态框样式 - 自适应屏幕大小
+		// 设置模态框样式 - 使用CSS类
 		const screenWidth = window.innerWidth;
-		const screenHeight = window.innerHeight;
 		
-		// 根据屏幕大小动态调整模态框尺寸
-		let modalWidth = '600px';
-		let modalHeight = 'auto';
+		// 添加基础模态框类
+		contentEl.addClass('video-generator-modal');
 		
+		// 根据屏幕大小添加响应式类
 		if (screenWidth <= 768) {
-			// 手机屏幕
-			modalWidth = '95vw';
-			modalHeight = '90vh';
+			contentEl.addClass('mobile');
 		} else if (screenWidth <= 1024) {
-			// 平板屏幕
-			modalWidth = '85vw';
-			modalHeight = '85vh';
+			contentEl.addClass('tablet');
 		} else if (screenWidth <= 1440) {
-			// 小桌面屏幕
-			modalWidth = '75vw';
-			modalHeight = '80vh';
+			contentEl.addClass('small-desktop');
 		} else {
-			// 大桌面屏幕
-			modalWidth = '65vw';
-			modalHeight = '75vh';
+			contentEl.addClass('large-desktop');
 		}
 		
 		// 应用用户自定义设置（如果设置了的话）
 		if (this.plugin.settings.modalWidth && this.plugin.settings.modalWidth !== '600px') {
-			modalWidth = this.plugin.settings.modalWidth;
+			contentEl.style.width = this.plugin.settings.modalWidth;
 		}
 		if (this.plugin.settings.modalHeight && this.plugin.settings.modalHeight !== 'auto') {
-			modalHeight = this.plugin.settings.modalHeight;
+			contentEl.style.height = this.plugin.settings.modalHeight;
 		}
-		
-		contentEl.style.width = modalWidth;
-		contentEl.style.height = modalHeight;
-		contentEl.style.maxWidth = '95vw';
-		contentEl.style.maxHeight = '95vh';
-		contentEl.style.minWidth = '300px';
-		contentEl.style.minHeight = '400px';
-		contentEl.style.overflowY = 'auto';
-		contentEl.style.padding = '20px';
-		contentEl.style.boxSizing = 'border-box';
-		contentEl.style.position = 'relative';
 
 		// 创建模态框标题
 		contentEl.createEl('h2', { text: 'AI Video Generator' });
@@ -757,68 +718,48 @@ class VideoGeneratorModal extends Modal {
 
 		// 提示词输入
 		const promptContainer = contentEl.createDiv('video-generator-prompt-container');
-		promptContainer.style.marginBottom = '15px';
 		const promptLabel = promptContainer.createEl('label', { text: '视频描述 (Prompt):' });
-		promptLabel.style.display = 'block';
-		promptLabel.style.marginBottom = '5px';
-		promptLabel.style.fontWeight = 'bold';
 		const promptInput = promptContainer.createEl('textarea', {
 			placeholder: '描述您想要生成的视频内容...',
 			value: this.initialPrompt
 		});
 		promptInput.setAttr('rows', '4');
-		promptInput.style.width = '50%';
-		promptInput.style.maxWidth = '100%';
-		promptInput.style.boxSizing = 'border-box';
-		promptInput.style.resize = 'vertical';
-		promptInput.style.minHeight = screenWidth <= 768 ? '60px' : '80px';
-		promptInput.style.maxHeight = screenHeight <= 600 ? '120px' : '200px';
-		promptInput.style.padding = screenWidth <= 768 ? '6px' : '8px';
-		promptInput.style.border = '1px solid #ddd';
-		promptInput.style.borderRadius = '4px';
-		promptInput.style.fontSize = screenWidth <= 768 ? '14px' : '16px';
+		
+		// 添加响应式类
+		if (screenWidth <= 768) {
+			promptInput.addClass('mobile');
+		}
 
 		// 参考图片URL输入
 		const imageContainer = contentEl.createDiv('video-generator-image-container');
-		imageContainer.style.marginBottom = '15px';
 		const imageLabel = imageContainer.createEl('label', { text: '参考图片URL (可选):' });
-		imageLabel.style.display = 'block';
-		imageLabel.style.marginBottom = '5px';
-		imageLabel.style.fontWeight = 'bold';
 		const imageInput = imageContainer.createEl('input', {
 			type: 'text',
 			placeholder: 'https://example.com/image.jpg'
 		});
-		imageInput.style.width = '50%';
-		imageInput.style.maxWidth = '100%';
-		imageInput.style.boxSizing = 'border-box';
-		imageInput.style.padding = screenWidth <= 768 ? '6px' : '8px';
-		imageInput.style.border = '1px solid #ddd';
-		imageInput.style.borderRadius = '4px';
-		imageInput.style.fontSize = screenWidth <= 768 ? '14px' : '16px';
+		
+		// 添加响应式类
+		if (screenWidth <= 768) {
+			imageInput.addClass('mobile');
+		}
 
 		// 视频参数设置
 		const paramsContainer = contentEl.createDiv('video-generator-params-container');
-		paramsContainer.style.display = 'flex';
-		paramsContainer.style.flexDirection = 'column';
-		paramsContainer.style.gap = screenWidth <= 768 ? '15px' : '20px';
-		paramsContainer.style.marginBottom = screenWidth <= 768 ? '15px' : '20px';
+		
+		// 添加响应式类
+		if (screenWidth <= 768) {
+			paramsContainer.addClass('mobile');
+		}
 		
 		// 模型选择
 		const modelContainer = paramsContainer.createDiv('video-generator-param');
-		modelContainer.style.display = 'flex';
-		modelContainer.style.flexDirection = 'column';
 		const modelLabel = modelContainer.createEl('label', { text: 'AI模型:' });
-		modelLabel.style.fontWeight = 'bold';
-		modelLabel.style.marginBottom = '5px';
 		const modelSelect = modelContainer.createEl('select');
-		modelSelect.style.width = '50%';
-		modelSelect.style.boxSizing = 'border-box';
-		modelSelect.style.padding = screenWidth <= 768 ? '8px' : '12px';
-		modelSelect.style.border = '1px solid #ddd';
-		modelSelect.style.borderRadius = '4px';
-		modelSelect.style.fontSize = screenWidth <= 768 ? '14px' : '16px';
-		modelSelect.style.minHeight = screenWidth <= 768 ? '44px' : '48px';
+		
+		// 添加响应式类
+		if (screenWidth <= 768) {
+			modelSelect.addClass('mobile');
+		}
 		const enabledModels = this.plugin.settings.modelConfigs.filter(model => model.enabled);
 		for (const model of enabledModels) {
 			const option = modelSelect.createEl('option', { value: model.value, text: model.name });
@@ -829,19 +770,13 @@ class VideoGeneratorModal extends Modal {
 
 		// 视频比例
 		const aspectRatioContainer = paramsContainer.createDiv('video-generator-param');
-		aspectRatioContainer.style.display = 'flex';
-		aspectRatioContainer.style.flexDirection = 'column';
 		const aspectRatioLabel = aspectRatioContainer.createEl('label', { text: '视频比例:' });
-		aspectRatioLabel.style.fontWeight = 'bold';
-		aspectRatioLabel.style.marginBottom = '5px';
 		const aspectRatioSelect = aspectRatioContainer.createEl('select');
-		aspectRatioSelect.style.width = '50%';
-		aspectRatioSelect.style.boxSizing = 'border-box';
-		aspectRatioSelect.style.padding = screenWidth <= 768 ? '8px' : '12px';
-		aspectRatioSelect.style.border = '1px solid #ddd';
-		aspectRatioSelect.style.borderRadius = '4px';
-		aspectRatioSelect.style.fontSize = screenWidth <= 768 ? '14px' : '16px';
-		aspectRatioSelect.style.minHeight = screenWidth <= 768 ? '44px' : '48px';
+		
+		// 添加响应式类
+		if (screenWidth <= 768) {
+			aspectRatioSelect.addClass('mobile');
+		}
 		for (const ratio of this.plugin.settings.availableAspectRatios) {
 			const option = aspectRatioSelect.createEl('option', { 
 				value: ratio, 
@@ -854,19 +789,13 @@ class VideoGeneratorModal extends Modal {
 
 		// 视频时长
 		const durationContainer = paramsContainer.createDiv('video-generator-param');
-		durationContainer.style.display = 'flex';
-		durationContainer.style.flexDirection = 'column';
 		const durationLabel = durationContainer.createEl('label', { text: '视频时长:' });
-		durationLabel.style.fontWeight = 'bold';
-		durationLabel.style.marginBottom = '5px';
 		const durationSelect = durationContainer.createEl('select');
-		durationSelect.style.width = '50%';
-		durationSelect.style.boxSizing = 'border-box';
-		durationSelect.style.padding = screenWidth <= 768 ? '8px' : '12px';
-		durationSelect.style.border = '1px solid #ddd';
-		durationSelect.style.borderRadius = '4px';
-		durationSelect.style.fontSize = screenWidth <= 768 ? '14px' : '16px';
-		durationSelect.style.minHeight = screenWidth <= 768 ? '44px' : '48px';
+		
+		// 添加响应式类
+		if (screenWidth <= 768) {
+			durationSelect.addClass('mobile');
+		}
 		for (const duration of this.plugin.settings.availableDurations) {
 			const option = durationSelect.createEl('option', { 
 				value: duration.toString(), 
@@ -879,19 +808,13 @@ class VideoGeneratorModal extends Modal {
 
 		// 视频清晰度
 		const sizeContainer = paramsContainer.createDiv('video-generator-param');
-		sizeContainer.style.display = 'flex';
-		sizeContainer.style.flexDirection = 'column';
 		const sizeLabel = sizeContainer.createEl('label', { text: '视频清晰度:' });
-		sizeLabel.style.fontWeight = 'bold';
-		sizeLabel.style.marginBottom = '5px';
 		const sizeSelect = sizeContainer.createEl('select');
-		sizeSelect.style.width = '50%';
-		sizeSelect.style.boxSizing = 'border-box';
-		sizeSelect.style.padding = screenWidth <= 768 ? '8px' : '12px';
-		sizeSelect.style.border = '1px solid #ddd';
-		sizeSelect.style.borderRadius = '4px';
-		sizeSelect.style.fontSize = screenWidth <= 768 ? '14px' : '16px';
-		sizeSelect.style.minHeight = screenWidth <= 768 ? '44px' : '48px';
+		
+		// 添加响应式类
+		if (screenWidth <= 768) {
+			sizeSelect.addClass('mobile');
+		}
 		for (const size of this.plugin.settings.availableSizes) {
 			const option = sizeSelect.createEl('option', { 
 				value: size, 
@@ -904,38 +827,21 @@ class VideoGeneratorModal extends Modal {
 
 		// 生成按钮
 		const buttonContainer = contentEl.createDiv('video-generator-button-container');
-		buttonContainer.style.textAlign = 'left';
-		buttonContainer.style.marginBottom = '20px';
 		const generateButton = buttonContainer.createEl('button', { text: '生成视频' });
 		generateButton.addClass('video-generator-button');
-		generateButton.style.padding = screenWidth <= 768 ? '8px 20px' : '10px 30px';
-		generateButton.style.fontSize = screenWidth <= 768 ? '14px' : '16px';
-		generateButton.style.backgroundColor = '#4CAF50';
-		generateButton.style.color = 'white';
-		generateButton.style.border = 'none';
-		generateButton.style.borderRadius = '5px';
-		generateButton.style.cursor = 'pointer';
-		generateButton.style.width = screenWidth <= 768 ? '100%' : 'auto';
-		generateButton.style.minHeight = screenWidth <= 768 ? '44px' : 'auto';
+		
+		// 添加响应式类
+		if (screenWidth <= 768) {
+			generateButton.addClass('mobile');
+		}
 
 		// 进度显示区域
 		const progressContainer = contentEl.createDiv('video-generator-progress-container');
 		progressContainer.style.display = 'none';
-		progressContainer.style.textAlign = 'left';
-		progressContainer.style.maxWidth = '80px';
-		progressContainer.style.backgroundColor = '#f0f0f0';
-		progressContainer.style.borderRadius = '5px';
-		progressContainer.style.marginBottom = '20px';
-		progressContainer.style.width = '80px';
 
 		// 结果显示区域
 		const resultContainer = contentEl.createDiv('video-generator-result-container');
 		resultContainer.style.display = 'none';
-		resultContainer.style.textAlign = 'left';
-		resultContainer.style.padding = '10px';
-		resultContainer.style.backgroundColor = '#e8f5e8';
-		resultContainer.style.borderRadius = '5px';
-		resultContainer.style.marginBottom = '20px';
 
 		// 生成按钮点击事件
 		generateButton.addEventListener('click', async () => {
@@ -947,7 +853,8 @@ class VideoGeneratorModal extends Modal {
 
 			// 显示进度区域
 			progressContainer.style.display = 'block';
-			progressContainer.innerHTML = '<div class="video-generator-progress">正在生成视频...</div>';
+			const progressDiv = progressContainer.createDiv('video-generator-progress');
+			progressDiv.textContent = '正在生成视频...';
 			resultContainer.style.display = 'none';
 			generateButton.disabled = true;
 			generateButton.textContent = '生成中...';
@@ -975,13 +882,11 @@ class VideoGeneratorModal extends Modal {
 				// 调用API
 				const response = await this.plugin.generateVideo(request);
 				
-				// console.log('Modal API Response:', response);
-				
 				// 检查响应格式并提取任务ID
 				let taskId: string | null = null;
 				
 				if (response && typeof response === 'object') {
-					const resp = response as any;
+					const resp = response as VideoGenerationResponse;
 					
 					// 检查标准格式: {id: "..."}
 					if (resp.id) {
@@ -1004,14 +909,6 @@ class VideoGeneratorModal extends Modal {
 						taskId = resp.data.taskId;
 					}
 					
-					// console.log('Response structure:', {
-					// 	hasId: !!resp.id,
-					// 	hasData: !!resp.data,
-					// 	dataId: resp.data?.id,
-					// 	dataTaskId: resp.data?.taskId,
-					// 	dataTask_id: resp.data?.task_id,
-					// 	fullResponse: resp
-					// });
 				}
 				
 				if (taskId) {
@@ -1022,7 +919,7 @@ class VideoGeneratorModal extends Modal {
 					console.error('Unexpected API response format:', response);
 					
 					// 尝试从data中提取更多信息
-					const resp = response as any;
+					const resp = response as VideoGenerationResponse;
 					let errorDetails = '';
 					
 					if (resp.data) {
@@ -1050,7 +947,9 @@ class VideoGeneratorModal extends Modal {
 				}
 				
 				// 显示错误信息
-				progressContainer.innerHTML = `<div class="video-generator-error">生成失败: ${friendlyMessage}</div>`;
+				progressContainer.empty();
+				const errorDiv = progressContainer.createDiv('video-generator-error');
+				errorDiv.textContent = `生成失败: ${friendlyMessage}`;
 				
 				// 恢复按钮状态
 				generateButton.disabled = false;
@@ -1073,7 +972,9 @@ class VideoGeneratorModal extends Modal {
 			// 检查是否超过最大尝试次数
 			if (pollCount > maxAttempts) {
 				clearInterval(pollInterval);
-				progressContainer.innerHTML = `<div class="video-generator-error">轮询超时，请稍后手动检查结果</div>`;
+				progressContainer.empty();
+				const errorDiv = progressContainer.createDiv('video-generator-error');
+				errorDiv.textContent = '轮询超时，请稍后手动检查结果';
 				generateButton.disabled = false;
 				generateButton.textContent = '生成视频';
 				new Notice('轮询超时，请稍后手动检查结果');
@@ -1083,17 +984,16 @@ class VideoGeneratorModal extends Modal {
 			try {
 				const result = await this.plugin.getVideoResult(id);
 				
-				// 添加调试日志
-				console.log('Video generation result:', result);
 				
 				// 更新进度 - 添加动画效果
 				const progress = result.progress || 0;
 				const progressText = progress > 0 ? `生成进度: ${progress}%` : '正在生成视频...';
-				progressContainer.innerHTML = `<div class="video-generator-progress">${progressText} (${pollCount}/${maxAttempts})</div>`;
+				progressContainer.empty();
+				const progressDiv = progressContainer.createDiv('video-generator-progress');
+				progressDiv.textContent = `${progressText} (${pollCount}/${maxAttempts})`;
 
 				// 检查生成状态 - 支持多种状态字段
 				const status = result.status || result.state || result.task_status;
-				console.log('Video generation status:', status, 'progress:', progress);
 				
 				if (status === 'succeeded' || status === 'completed' || status === 'success' || progress === 100) {
 					clearInterval(pollInterval);
@@ -1101,7 +1001,9 @@ class VideoGeneratorModal extends Modal {
 					// 确保最小显示时间
 					const elapsedTime = Date.now() - startTime;
 					if (elapsedTime < minDisplayTime) {
-						progressContainer.innerHTML = `<div class="video-generator-progress">生成完成，正在处理...</div>`;
+						progressContainer.empty();
+						const progressDiv = progressContainer.createDiv('video-generator-progress');
+						progressDiv.textContent = '生成完成，正在处理...';
 						await new Promise(resolve => setTimeout(resolve, minDisplayTime - elapsedTime));
 					}
 					
@@ -1120,7 +1022,9 @@ class VideoGeneratorModal extends Modal {
 						await new Promise(resolve => setTimeout(resolve, minDisplayTime - elapsedTime));
 					}
 					
-					progressContainer.innerHTML = `<div class="video-generator-error">生成失败: ${errorMsg}</div>`;
+					progressContainer.empty();
+					const errorDiv = progressContainer.createDiv('video-generator-error');
+					errorDiv.textContent = `生成失败: ${errorMsg}`;
 					generateButton.disabled = false;
 					generateButton.textContent = '生成视频';
 					new Notice(`生成失败: ${errorMsg}`);
@@ -1136,7 +1040,9 @@ class VideoGeneratorModal extends Modal {
 				}
 				
 				// 显示错误信息
-				progressContainer.innerHTML = `<div class="video-generator-error">获取结果失败: ${error.message}</div>`;
+				progressContainer.empty();
+				const errorDiv = progressContainer.createDiv('video-generator-error');
+				errorDiv.textContent = `获取结果失败: ${error.message}`;
 				
 				// 恢复按钮状态
 				generateButton.disabled = false;
@@ -1150,7 +1056,6 @@ class VideoGeneratorModal extends Modal {
 
 	// 提取视频URL的通用函数
 	extractVideoUrl(result: any): string | null {
-		console.log('Extracting video URL from result:', result);
 		
 		// 常见的视频URL字段名
 		const possibleFields = [
@@ -1161,7 +1066,6 @@ class VideoGeneratorModal extends Modal {
 		// 检查顶级字段
 		for (const field of possibleFields) {
 			if (result[field] && typeof result[field] === 'string' && result[field].trim()) {
-				console.log(`Found video URL in field '${field}':`, result[field]);
 				return result[field].trim();
 			}
 		}
@@ -1172,7 +1076,6 @@ class VideoGeneratorModal extends Modal {
 			if (result[objKey] && typeof result[objKey] === 'object') {
 				for (const field of possibleFields) {
 					if (result[objKey][field] && typeof result[objKey][field] === 'string' && result[objKey][field].trim()) {
-						console.log(`Found video URL in '${objKey}.${field}':`, result[objKey][field]);
 						return result[objKey][field].trim();
 					}
 				}
@@ -1185,7 +1088,6 @@ class VideoGeneratorModal extends Modal {
 				if (item && typeof item === 'object') {
 					for (const field of possibleFields) {
 						if (item[field] && typeof item[field] === 'string' && item[field].trim()) {
-							console.log(`Found video URL in results[].${field}:`, item[field]);
 							return item[field].trim();
 						}
 					}
@@ -1199,7 +1101,6 @@ class VideoGeneratorModal extends Modal {
 				if (file && typeof file === 'object') {
 					for (const field of possibleFields) {
 						if (file[field] && typeof file[field] === 'string' && file[field].trim()) {
-							console.log(`Found video URL in files[].${field}:`, file[field]);
 							return file[field].trim();
 						}
 					}
@@ -1207,19 +1108,14 @@ class VideoGeneratorModal extends Modal {
 			}
 		}
 		
-		console.log('No video URL found in result');
 		return null;
 	}
 
 	// 显示视频结果
 	showVideoResult(result: VideoGenerationResponse, resultContainer: HTMLElement) {
-		console.log('=== 模态框视频结果调试 ===');
-		console.log('Result object:', result);
-		console.log('Result type:', typeof result);
-		console.log('Result keys:', Object.keys(result || {}));
 		
 		resultContainer.style.display = 'block';
-		resultContainer.innerHTML = '';
+		resultContainer.empty();
 
 		// 使用通用函数提取视频URL - 直接实现
 		let videoUrl: string | null = null;
@@ -1234,7 +1130,6 @@ class VideoGeneratorModal extends Modal {
 				for (const field of possibleFields) {
 					if (result[field] && typeof result[field] === 'string' && result[field].startsWith('http')) {
 						videoUrl = result[field];
-						console.log(`Found video URL in field '${field}':`, videoUrl);
 						break;
 					}
 				}
@@ -1247,7 +1142,6 @@ class VideoGeneratorModal extends Modal {
 							for (const field of possibleFields) {
 								if (result[obj][field] && typeof result[obj][field] === 'string' && result[obj][field].startsWith('http')) {
 									videoUrl = result[obj][field];
-									console.log(`Found video URL in nested field '${obj}.${field}':`, videoUrl);
 									break;
 								}
 							}
@@ -1263,33 +1157,23 @@ class VideoGeneratorModal extends Modal {
 						if (Array.isArray(result[field]) && result[field].length > 0) {
 							const firstItem = result[field][0];
 							if (firstItem && typeof firstItem === 'object') {
-								for (const urlField of possibleFields) {
-									if (firstItem[urlField] && typeof firstItem[urlField] === 'string' && firstItem[urlField].startsWith('http')) {
-										videoUrl = firstItem[urlField];
-										console.log(`Found video URL in array field '${field}[0].${urlField}':`, videoUrl);
-										break;
+									for (const urlField of possibleFields) {
+										if (firstItem[urlField] && typeof firstItem[urlField] === 'string' && firstItem[urlField].startsWith('http')) {
+											videoUrl = firstItem[urlField];
+											break;
+										}
 									}
-								}
 								if (videoUrl) break;
 							}
 						}
 					}
 				};
 		
-		console.log('Final video URL:', videoUrl);
-		console.log('VideoUrl type:', typeof videoUrl);
-		console.log('VideoUrl length:', videoUrl ? videoUrl.length : 'N/A');
-
 		if (videoUrl && videoUrl !== 'undefined' && videoUrl.trim() !== '') {
 			// 创建视频预览
 			const videoElement = resultContainer.createEl('video') as HTMLVideoElement;
-			console.log('Setting video src to:', videoUrl);
 			videoElement.src = videoUrl;
 			videoElement.controls = true;
-			videoElement.style.width = '80px';
-			videoElement.style.minWidth = '80px';
-			videoElement.style.maxWidth = '80px';
-			videoElement.style.display = 'block';
 
 			// 创建下载按钮
 			const downloadButton = resultContainer.createEl('button', { text: '下载到 aiviode 文件夹' });
@@ -1317,14 +1201,14 @@ class VideoGeneratorModal extends Modal {
 			});
 		} else {
 			// 如果没有找到视频URL，显示调试信息
-			resultContainer.innerHTML = `
-				<div class="video-generator-error">
-					未找到视频URL，请检查API响应结构<br>
-					<details>
-						<summary>调试信息</summary>
-						<pre>${JSON.stringify(result, null, 2)}</pre>
-					</details>
-				</div>
+			console.error('未找到视频URL，API响应结构:', result);
+			const errorDiv = resultContainer.createDiv('video-generator-error');
+			errorDiv.innerHTML = `
+				未找到视频URL，请检查API响应结构<br>
+				<details>
+					<summary>调试信息</summary>
+					<pre>${JSON.stringify(result, null, 2)}</pre>
+				</details>
 			`;
 		}
 	}
@@ -1413,8 +1297,8 @@ class VideoGeneratorView extends ItemView {
 			const settingsBtn = errorEl.createEl('button', { text: '打开设置' });
 			settingsBtn.addClass('video-generator-button');
 			settingsBtn.onclick = () => {
-				(this.app as any).setting.open();
-				(this.app as any).setting.openTabById(this.plugin.manifest.id);
+				(this.app as App & { setting: { open: () => void; openTabById: (id: string) => void } }).setting.open();
+				(this.app as App & { setting: { open: () => void; openTabById: (id: string) => void } }).setting.openTabById(this.plugin.manifest.id);
 			};
 			return;
 		}
@@ -1522,7 +1406,8 @@ class VideoGeneratorView extends ItemView {
 
 			// 显示进度
 			progressContainer.style.display = 'block';
-			progressContainer.innerHTML = '<div class="video-generator-progress">正在生成视频...</div>';
+			const progressDiv = progressContainer.createDiv('video-generator-progress');
+			progressDiv.textContent = '正在生成视频...';
 			resultContainer.style.display = 'none';
 			generateButton.disabled = true;
 			generateButton.textContent = '生成中...';
@@ -1543,10 +1428,6 @@ class VideoGeneratorView extends ItemView {
 					resultContainer.style.display = 'block';
 					resultContainer.empty();
 
-					// console.log('=== 视频生成结果调试 ===');
-					// console.log('Result object:', result);
-					// console.log('Result type:', typeof result);
-					// console.log('Result keys:', Object.keys(result || {}));
 					
 					let videoUrl: string | null = null;
 					const possibleFields = [
@@ -1556,7 +1437,6 @@ class VideoGeneratorView extends ItemView {
 					for (const field of possibleFields) {
 						if (result[field] && typeof result[field] === 'string' && result[field].startsWith('http')) {
 							videoUrl = result[field];
-							// console.log(`Found video URL in field '${field}':`, videoUrl);
 							break;
 						}
 					}
@@ -1567,7 +1447,6 @@ class VideoGeneratorView extends ItemView {
 								for (const field of possibleFields) {
 									if (result[obj][field] && typeof result[obj][field] === 'string' && result[obj][field].startsWith('http')) {
 										videoUrl = result[obj][field];
-										// console.log(`Found video URL in nested field '${obj}.${field}':`, videoUrl);
 										break;
 									}
 								}
@@ -1584,7 +1463,6 @@ class VideoGeneratorView extends ItemView {
 									for (const urlField of possibleFields) {
 										if (firstItem[urlField] && typeof firstItem[urlField] === 'string' && firstItem[urlField].startsWith('http')) {
 											videoUrl = firstItem[urlField];
-											// console.log(`Found video URL in array field '${field}[0].${urlField}':`, videoUrl);
 											break;
 										}
 									}
@@ -1593,19 +1471,14 @@ class VideoGeneratorView extends ItemView {
 							}
 						}
 					};
-					// console.log('Final videoUrl:', videoUrl);
-					// console.log('VideoUrl type:', typeof videoUrl);
-					// console.log('VideoUrl length:', videoUrl ? videoUrl.length : 'N/A');
 					if (!videoUrl || videoUrl === 'undefined' || (videoUrl as string).trim() === '') {
 						console.error('No valid video URL found in result:', result);
 						throw new Error(`未找到有效的视频URL。结果对象: ${JSON.stringify(result)}`);
 					}
 					const videoEl = resultContainer.createEl('video');
-					// console.log('Setting video src to:', videoUrl);
 					videoEl.setAttribute('src', videoUrl);
 					videoEl.setAttribute('controls', 'true');
 					const buttonRow = resultContainer.createDiv();
-					buttonRow.style.marginTop = '10px';
 					const downloadBtn = buttonRow.createEl('button', { text: '下载视频' });
 					downloadBtn.addClass('video-generator-download-button');
 					downloadBtn.onclick = () => {
@@ -1650,7 +1523,9 @@ class VideoGeneratorView extends ItemView {
 						pollCount++;
 						if (pollCount > maxAttempts) {
 							clearInterval(intervalId);
-							progressContainer.innerHTML = `<div class="video-generator-error">轮询超时，请稍后手动检查结果</div>`;
+							progressContainer.empty();
+							const errorDiv = progressContainer.createDiv('video-generator-error');
+							errorDiv.textContent = '轮询超时，请稍后手动检查结果';
 							generateButton.disabled = false;
 							generateButton.textContent = '生成视频';
 							new Notice('轮询超时，请稍后手动检查结果');
@@ -1658,10 +1533,11 @@ class VideoGeneratorView extends ItemView {
 						}
 						try {
 							const result = await this.plugin.getVideoResult(taskId!);
-							// console.log('Video generation result:', result);
 							const progress = result.progress || 0;
 							const progressText = progress > 0 ? `生成进度: ${progress}%` : '正在生成视频...';
-							progressContainer.innerHTML = `<div class=\"video-generator-progress\">${progressText} (${pollCount}/${maxAttempts})</div>`;
+							progressContainer.empty();
+							const progressDiv = progressContainer.createDiv('video-generator-progress');
+							progressDiv.textContent = `${progressText} (${pollCount}/${maxAttempts})`;
 							const status = result.status || result.state || result.task_status;
 							if (status === 'succeeded' || status === 'completed' || status === 'success' || progress === 100) {
 								clearInterval(intervalId);
@@ -1672,7 +1548,9 @@ class VideoGeneratorView extends ItemView {
 							} else if (status === 'failed' || status === 'error') {
 								clearInterval(intervalId);
 								const errorMsg = result.failure_reason || result.error || result.message || '未知错误';
-								progressContainer.innerHTML = `<div class=\"video-generator-error\">生成失败: ${errorMsg}</div>`;
+								progressContainer.empty();
+								const errorDiv = progressContainer.createDiv('video-generator-error');
+								errorDiv.textContent = `生成失败: ${errorMsg}`;
 								generateButton.disabled = false;
 								generateButton.textContent = '生成视频';
 								new Notice(`生成失败: ${errorMsg}`);
@@ -1783,50 +1661,34 @@ class VideoGeneratorSettingTab extends PluginSettingTab {
 		// 显示当前配置的主机列表
 		for (const host of this.plugin.settings.apiHosts) {
 			const hostContainer = containerEl.createDiv('api-host-item');
-			hostContainer.style.border = '1px solid var(--background-modifier-border)';
-			hostContainer.style.padding = '10px';
-			hostContainer.style.margin = '5px 0';
-			hostContainer.style.borderRadius = '4px';
 
 			// 主机名称和状态
-			const headerDiv = hostContainer.createDiv();
-			headerDiv.style.display = 'flex';
-			headerDiv.style.justifyContent = 'space-between';
-			headerDiv.style.alignItems = 'center';
-			headerDiv.style.marginBottom = '5px';
+			const headerDiv = hostContainer.createDiv('header-div');
 
-			const nameSpan = headerDiv.createSpan();
+			const nameSpan = headerDiv.createSpan('name-span');
 			nameSpan.textContent = host.name;
-			nameSpan.style.fontWeight = 'bold';
 
-			const statusSpan = headerDiv.createSpan();
+			const statusSpan = headerDiv.createSpan('status-span');
 			statusSpan.textContent = host.enabled ? '✅ 启用' : '❌ 禁用';
-			statusSpan.style.color = host.enabled ? 'var(--text-accent)' : 'var(--text-muted)';
+			if (!host.enabled) {
+				statusSpan.addClass('disabled');
+			}
 
 			// 主机URL
-			const urlDiv = hostContainer.createDiv();
+			const urlDiv = hostContainer.createDiv('url-div');
 			urlDiv.textContent = `URL: ${host.url}`;
-			urlDiv.style.fontSize = '0.9em';
-			urlDiv.style.color = 'var(--text-muted)';
-			urlDiv.style.marginBottom = '5px';
 
 			// 描述
 			if (host.description) {
-				const descDiv = hostContainer.createDiv();
+				const descDiv = hostContainer.createDiv('desc-div');
 				descDiv.textContent = host.description;
-				descDiv.style.fontSize = '0.8em';
-				descDiv.style.color = 'var(--text-muted)';
-				descDiv.style.marginBottom = '5px';
 			}
 
 			// 操作按钮
-			const buttonDiv = hostContainer.createDiv();
-			buttonDiv.style.display = 'flex';
-			buttonDiv.style.gap = '5px';
+			const buttonDiv = hostContainer.createDiv('button-div');
 
 			// 启用/禁用按钮
 			const toggleButton = buttonDiv.createEl('button', { text: host.enabled ? '禁用' : '启用' });
-			toggleButton.style.fontSize = '0.8em';
 			toggleButton.onclick = async () => {
 				host.enabled = !host.enabled;
 				await this.plugin.saveSettings();
@@ -1835,7 +1697,6 @@ class VideoGeneratorSettingTab extends PluginSettingTab {
 
 			// 测试连接按钮
 			const testButton = buttonDiv.createEl('button', { text: '测试连接' });
-			testButton.style.fontSize = '0.8em';
 			testButton.onclick = async () => {
 				await this.testApiHost(host);
 			};
@@ -1843,8 +1704,7 @@ class VideoGeneratorSettingTab extends PluginSettingTab {
 			// 删除按钮（仅对非默认主机显示）
 			if (host.id !== 'default' && host.id !== 'overseas') {
 				const deleteButton = buttonDiv.createEl('button', { text: '删除' });
-				deleteButton.style.fontSize = '0.8em';
-				deleteButton.style.color = 'var(--text-error)';
+				deleteButton.addClass('delete');
 				deleteButton.onclick = async () => {
 					if (confirm(`确定要删除主机 "${host.name}" 吗？`)) {
 						this.plugin.settings.apiHosts = this.plugin.settings.apiHosts.filter(h => h.id !== host.id);
@@ -1861,7 +1721,6 @@ class VideoGeneratorSettingTab extends PluginSettingTab {
 
 		// 添加新主机按钮
 		const addHostButton = containerEl.createEl('button', { text: '➕ 添加新API主机' });
-		addHostButton.style.marginTop = '10px';
 		addHostButton.onclick = () => {
 			this.showAddHostModal();
 		};
@@ -1936,47 +1795,31 @@ class VideoGeneratorSettingTab extends PluginSettingTab {
 		// 显示当前模型配置
 		for (const model of this.plugin.settings.modelConfigs) {
 			const modelCard = containerEl.createDiv('model-card');
-			modelCard.style.border = '1px solid var(--background-modifier-border)';
-			modelCard.style.borderRadius = '6px';
-			modelCard.style.padding = '12px';
-			modelCard.style.marginBottom = '8px';
-			modelCard.style.backgroundColor = 'var(--background-secondary)';
 
 			// 模型信息
 			const modelInfo = modelCard.createDiv('model-info');
-			modelInfo.style.display = 'flex';
-			modelInfo.style.justifyContent = 'space-between';
-			modelInfo.style.alignItems = 'center';
 
 			const modelDetails = modelInfo.createDiv('model-details');
-			modelDetails.style.flex = '1';
 
 			const modelName = modelDetails.createEl('div', { text: model.name });
-			modelName.style.fontWeight = 'bold';
-			modelName.style.fontSize = '0.9em';
+			modelName.addClass('model-name');
 
 			const modelValue = modelDetails.createEl('div', { text: `值: ${model.value}` });
-			modelValue.style.fontSize = '0.8em';
-			modelValue.style.color = 'var(--text-muted)';
+			modelValue.addClass('model-value');
 
 			if (model.description) {
 				const modelDesc = modelDetails.createEl('div', { text: model.description });
-				modelDesc.style.fontSize = '0.8em';
-				modelDesc.style.color = 'var(--text-muted)';
-				modelDesc.style.marginTop = '2px';
+				modelDesc.addClass('model-desc');
 			}
 
 			// 操作按钮
 			const buttonDiv = modelInfo.createDiv('model-actions');
-			buttonDiv.style.display = 'flex';
-			buttonDiv.style.gap = '8px';
 
 			// 启用/禁用按钮
 			const toggleButton = buttonDiv.createEl('button', { 
 				text: model.enabled ? '禁用' : '启用' 
 			});
-			toggleButton.style.fontSize = '0.8em';
-			toggleButton.style.color = model.enabled ? 'var(--text-error)' : 'var(--text-accent)';
+			toggleButton.addClass(model.enabled ? 'toggle-enabled' : 'toggle-disabled');
 			toggleButton.onclick = async () => {
 				model.enabled = !model.enabled;
 				await this.plugin.saveSettings();
@@ -1986,15 +1829,13 @@ class VideoGeneratorSettingTab extends PluginSettingTab {
 			// 编辑按钮（仅对自定义模型显示）
 			if (model.isCustom) {
 				const editButton = buttonDiv.createEl('button', { text: '编辑' });
-				editButton.style.fontSize = '0.8em';
 				editButton.onclick = () => {
 					this.showEditModelModal(model);
 				};
 
 				// 删除按钮（仅对自定义模型显示）
 				const deleteButton = buttonDiv.createEl('button', { text: '删除' });
-				deleteButton.style.fontSize = '0.8em';
-				deleteButton.style.color = 'var(--text-error)';
+				deleteButton.addClass('delete');
 				deleteButton.onclick = async () => {
 					if (confirm(`确定要删除模型 "${model.name}" 吗？`)) {
 						this.plugin.settings.modelConfigs = this.plugin.settings.modelConfigs.filter(m => m.id !== model.id);
@@ -2014,7 +1855,6 @@ class VideoGeneratorSettingTab extends PluginSettingTab {
 
 		// 添加新模型按钮
 		const addModelButton = containerEl.createEl('button', { text: '➕ 添加新AI模型' });
-		addModelButton.style.marginTop = '10px';
 		addModelButton.onclick = () => {
 			this.showAddModelModal();
 		};
@@ -2242,38 +2082,29 @@ class AddApiHostModal extends Modal {
 		contentEl.createEl('h2', { text: '添加新API主机' });
 
 		// 主机名称
-		const nameDiv = contentEl.createDiv();
+		const nameDiv = contentEl.createDiv('form-input-container');
 		nameDiv.createEl('label', { text: '主机名称' });
 		const nameInput = nameDiv.createEl('input', { type: 'text', placeholder: '例如：备用服务器' });
-		nameInput.style.width = '100%';
-		nameInput.style.marginBottom = '10px';
 
 		// 主机URL
-		const urlDiv = contentEl.createDiv();
+		const urlDiv = contentEl.createDiv('form-input-container');
 		urlDiv.createEl('label', { text: '主机URL' });
 		const urlInput = urlDiv.createEl('input', { type: 'text', placeholder: 'https://api.example.com' });
-		urlInput.style.width = '100%';
-		urlInput.style.marginBottom = '10px';
 
 		// 描述
-		const descDiv = contentEl.createDiv();
+		const descDiv = contentEl.createDiv('form-input-container');
 		descDiv.createEl('label', { text: '描述（可选）' });
 		const descInput = descDiv.createEl('input', { type: 'text', placeholder: '例如：备用服务器，稳定性好' });
-		descInput.style.width = '100%';
-		descInput.style.marginBottom = '20px';
 
 		// 按钮
-		const buttonDiv = contentEl.createDiv();
-		buttonDiv.style.display = 'flex';
-		buttonDiv.style.gap = '10px';
-		buttonDiv.style.justifyContent = 'flex-end';
+		const buttonDiv = contentEl.createDiv('modal-button-container');
 
 		const cancelButton = buttonDiv.createEl('button', { text: '取消' });
+		cancelButton.addClass('secondary');
 		cancelButton.onclick = () => this.close();
 
 		const addButton = buttonDiv.createEl('button', { text: '添加' });
-		addButton.style.backgroundColor = 'var(--interactive-accent)';
-		addButton.style.color = 'var(--text-on-accent)';
+		addButton.addClass('primary');
 		addButton.onclick = () => {
 			const name = nameInput.value.trim();
 			const url = urlInput.value.trim();
@@ -2337,38 +2168,29 @@ class AddModelModal extends Modal {
 		contentEl.createEl('h2', { text: '添加新AI模型' });
 
 		// 模型名称
-		const nameDiv = contentEl.createDiv();
+		const nameDiv = contentEl.createDiv('form-input-container');
 		nameDiv.createEl('label', { text: '模型名称' });
 		const nameInput = nameDiv.createEl('input', { type: 'text', placeholder: '例如：GPT-4 Video' });
-		nameInput.style.width = '100%';
-		nameInput.style.marginBottom = '10px';
 
 		// 模型值
-		const valueDiv = contentEl.createDiv();
+		const valueDiv = contentEl.createDiv('form-input-container');
 		valueDiv.createEl('label', { text: '模型值（API参数）' });
 		const valueInput = valueDiv.createEl('input', { type: 'text', placeholder: '例如：gpt-4-video' });
-		valueInput.style.width = '100%';
-		valueInput.style.marginBottom = '10px';
 
 		// 描述
-		const descDiv = contentEl.createDiv();
+		const descDiv = contentEl.createDiv('form-input-container');
 		descDiv.createEl('label', { text: '描述（可选）' });
 		const descInput = descDiv.createEl('input', { type: 'text', placeholder: '例如：OpenAI最新视频生成模型' });
-		descInput.style.width = '100%';
-		descInput.style.marginBottom = '20px';
 
 		// 按钮
-		const buttonDiv = contentEl.createDiv();
-		buttonDiv.style.display = 'flex';
-		buttonDiv.style.gap = '10px';
-		buttonDiv.style.justifyContent = 'flex-end';
+		const buttonDiv = contentEl.createDiv('modal-button-container');
 
 		const cancelButton = buttonDiv.createEl('button', { text: '取消' });
+		cancelButton.addClass('secondary');
 		cancelButton.onclick = () => this.close();
 
 		const addButton = buttonDiv.createEl('button', { text: '添加' });
-		addButton.style.backgroundColor = 'var(--interactive-accent)';
-		addButton.style.color = 'var(--text-on-accent)';
+		addButton.addClass('primary');
 		addButton.onclick = () => {
 			const name = nameInput.value.trim();
 			const value = valueInput.value.trim();
@@ -2427,38 +2249,29 @@ class EditModelModal extends Modal {
 		contentEl.createEl('h2', { text: '编辑AI模型' });
 
 		// 模型名称
-		const nameDiv = contentEl.createDiv();
+		const nameDiv = contentEl.createDiv('form-input-container');
 		nameDiv.createEl('label', { text: '模型名称' });
 		const nameInput = nameDiv.createEl('input', { type: 'text', value: this.model.name });
-		nameInput.style.width = '100%';
-		nameInput.style.marginBottom = '10px';
 
 		// 模型值
-		const valueDiv = contentEl.createDiv();
+		const valueDiv = contentEl.createDiv('form-input-container');
 		valueDiv.createEl('label', { text: '模型值（API参数）' });
 		const valueInput = valueDiv.createEl('input', { type: 'text', value: this.model.value });
-		valueInput.style.width = '100%';
-		valueInput.style.marginBottom = '10px';
 
 		// 描述
-		const descDiv = contentEl.createDiv();
+		const descDiv = contentEl.createDiv('form-input-container');
 		descDiv.createEl('label', { text: '描述（可选）' });
 		const descInput = descDiv.createEl('input', { type: 'text', value: this.model.description || '' });
-		descInput.style.width = '100%';
-		descInput.style.marginBottom = '20px';
 
 		// 按钮
-		const buttonDiv = contentEl.createDiv();
-		buttonDiv.style.display = 'flex';
-		buttonDiv.style.gap = '10px';
-		buttonDiv.style.justifyContent = 'flex-end';
+		const buttonDiv = contentEl.createDiv('modal-button-container');
 
 		const cancelButton = buttonDiv.createEl('button', { text: '取消' });
+		cancelButton.addClass('secondary');
 		cancelButton.onclick = () => this.close();
 
 		const saveButton = buttonDiv.createEl('button', { text: '保存' });
-		saveButton.style.backgroundColor = 'var(--interactive-accent)';
-		saveButton.style.color = 'var(--text-on-accent)';
+		saveButton.addClass('primary');
 		saveButton.onclick = () => {
 			const name = nameInput.value.trim();
 			const value = valueInput.value.trim();
