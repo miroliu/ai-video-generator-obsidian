@@ -171,11 +171,11 @@
 .video-generator-progress-container {
 	display: none;
 	text-align: left;
-	max-width: 80px;
+	width: 100%;
+	max-width: 100%;
 	background-color: #f0f0f0;
 	border-radius: 5px;
 	margin-bottom: 20px;
-	width: 80px;
 }
 
 .video-generator-progress {
@@ -194,10 +194,12 @@
 }
 
 .video-generator-result-container video {
-	width: 80px;
-	min-width: 80px;
-	max-width: 80px;
+	width: 100%;
+	max-width: 100%;
+	min-width: 200px;
+	height: auto;
 	display: block;
+	border-radius: 4px;
 }
 
 /* Download Button */
@@ -241,6 +243,13 @@
 
 .video-generator-sidebar .video-generator-param select {
 	width: 100%;
+}
+
+.video-generator-sidebar .video-generator-result-container video {
+	width: 100%;
+	max-width: 100%;
+	min-width: 150px;
+	height: auto;
 }
 
 /* API Host Item */
